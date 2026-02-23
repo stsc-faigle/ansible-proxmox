@@ -1,0 +1,40 @@
+# Ansible temporary and working files
+*.retry
+
+# Ansible Vault encrypted secrets (falls der Dateiname fix ist)
+vault.yml
+*.vault
+*.vault.yml
+*.yml.vault
+
+# SSH keys and private credentials
+*.pem
+*.key
+ssh_key
+id_rsa
+id_rsa.pub
+id_ecdsa
+id_ecdsa.pub
+
+# Local inventories you don’t want in Git
+inventory/*
+!inventory/example
+
+# Python virtual environments (falls du ansible in venv nutzt)
+venv/
+.env/
+
+# Editor / OS junk
+.DS_Store
+Thumbs.db
+
+# Byte-compiled / cache files
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Role-specific excludes (optional)
+roles/*/*/.secret/
+roles/*/*/files/private/

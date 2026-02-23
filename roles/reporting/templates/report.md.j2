@@ -1,0 +1,263 @@
+# Proxmox Update Dashboard – {{ ansible_date_time.date }}
+
+{% set T = reporting_thresholds | default({}) %}
+{% set HT = reporting_host_thresholds | default({}) %}
+{% set PAL = {
+  'ok':   {'bg':'#E6F4EA','fg':'#0F5132','border':'#c7e6cf'},
+  'warn': {'bg':'#FFF3CD','fg':'#664D03','border':'#ffe69c'},
+  'crit': {'bg':'#F8D7DA','fg':'#842029','border':'#f1aeb5'},
+  'head': {'bg':'#F6F8FA','fg':'#24292f','border':'#d0d7de'},
+  'card': {'bg':'#ffffff','border':'#d0d7de'},
+  'table_width': '760px'
+} %}
+
+{% macro level_by_threshold(value, th) -%}
+{% if th is not mapping %}{% set th={} %}{% endif %}
+{% set warn=th.get('warn') %}
+{% set crit=th.get('crit') %}
+{% set value=value|int %}
+{% if crit is not none and value<=crit %}{{"crit"}}{% elif warn is not none and value<=warn %}{{"warn"}}{% else %}{{"ok"}}{% endif %}
+{%- endmacro %}
+
+{% macro status_badge_from_string(status) -%}
+{% set map={'ok':'ok','changed':'warn','reboot-required':'warn','failed':'crit'} %}
+{% set status=status|default('ok')|trim %}
+{% set lvl=map.get(status,'ok') %}
+{% set p=PAL[lvl] %}
+<span style="display:inline-block;padding:4px 10px;border-radius:6px;background:{{p.bg}};color:{{p.fg}};border:1px solid {{p.border}};font-size:13px;font-weight:600;">
+{{status|upper}}
+</span>
+{%- endmacro %}
+
+{% macro status_badge_from_metric(metric_value, th_key) -%}
+{% set th=HT.get(th_key,{}) %}
+{% set metric_value=metric_value|default(0)|int %}
+{% set lvl=level_by_threshold(metric_value,th) %}
+{% set p=PAL[lvl] %}
+<span style="display:inline-block;padding:4px 10px;border-radius:6px;background:{{p.bg}};color:{{p.fg}};border:1px solid {{p.border}};font-size:13px;font-weight:600;">
+{{metric_value}} {{th_key}}
+</span>
+{%- endmacro %}
+
+{% macro kpi_card(title, value, lvl) -%}
+{% set p=PAL[lvl] %}
+<div style="display:inline-block;width:200px;margin:10px;padding:16px;border-radius:10px;background:{{p.bg}};border:2px solid {{p.border}};">
+  <div style="font-size:14px;color:{{p.fg}};font-weight:600;margin-bottom:6px;">{{title}}</div>
+  <div style="font-size:28px;color:{{p.fg}};font-weight:700;">{{value}}</div>
+</div>
+{%- endmacro %}
+
+{% macro snapshot_badge(hv) -%}
+{% set count = hv.get('snapshot_count', 0) | int %}
+{% set status = hv.get('snapshot_status', 'ok') %}
+{% set lvl = status %}
+{% set p = PAL[lvl] %}
+<span style="display:inline-block;padding:4px 10px;border-radius:6px;background:{{p.bg}};color:{{p.fg}};border:1px solid {{p.border}};font-size:13px;font-weight:600;">
+{{count}} Snapshots
+</span>
+{%- endmacro %}
+
+## 🧭 Gesamtstatus
+
+{% set total_hosts = groups['proxmox'] | length %}
+{% set total_updates = 0 %}
+{% for host in groups['proxmox'] %}
+    {% set hv = hostvars.get(host, {}) %}
+    {% set total_updates = total_updates + (hv.get('updates_total', 0) | int) %}
+{% endfor %}
+{% set total_reboots = groups['proxmox'] | selectattr('reboot_required','defined') | list | length %}
+
+{% set lvl_hosts = level_by_threshold(total_hosts, T.get('proxmox',{})) %}
+{% set lvl_updates = level_by_threshold(total_updates, T.get('updates_total',{})) %}
+{% set lvl_reboots = "warn" if total_reboots > 0 else "ok" %}
+
+{{ kpi_card("Hosts", total_hosts, lvl_hosts) }}
+{{ kpi_card("Updates gesamt", total_updates, lvl_updates) }}
+{{ kpi_card("Reboots benötigt", total_reboots, lvl_reboots) }}
+---
+
+## 🗂 Snapshots – Proxmox Hosts
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Host</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Snapshots</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Ältester</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Neuester</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['proxmox'] %}
+{% set hv = hostvars.get(host, {}) %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ host }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ snapshot_badge(hv) }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_oldest','–') }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_youngest','–') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+
+{% set total_lxc = groups['lxc'] | length %}
+{% set total_vms = groups['vms'] | length %}
+
+{{ kpi_card("LXC Container", total_lxc, "ok") }}
+{{ kpi_card("Virtuelle Maschinen", total_vms, "ok") }}
+
+---
+
+## 🧩 Host Details
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Host</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Status</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Updates</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Notizen</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['proxmox'] %}
+{% set hv=hostvars.get(host,{}) %}
+{% set st=hv.get('update_status','ok') %}
+{% set up=hv.get('updates_total',0)|int %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{host}}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{status_badge_from_string(st)}}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{status_badge_from_metric(up,'updates_total')}}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{hv.get('update_note','')}}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+---
+
+## 🧩 LXC Container
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Container</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Status</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Updates</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Notizen</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['lxc'] %}
+{% set hv = hostvars.get(host, {}) %}
+{% set st = hv.get('update_status', 'ok') %}
+{% set up = hv.get('updates_total', 0) | int %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ host }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ status_badge_from_string(st) }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ status_badge_from_metric(up, 'updates_total') }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('update_note','') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+---
+
+## 🗂 Snapshots – LXC Container
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Container</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Snapshots</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Ältester</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Neuester</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['lxc'] %}
+{% set hv = hostvars.get(host, {}) %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ host }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ snapshot_badge(hv) }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_oldest','–') }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_youngest','–') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+
+---
+
+## 🧩 Virtuelle Maschinen
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">VM</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Status</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Updates</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Notizen</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['vms'] %}
+{% set hv = hostvars.get(host, {}) %}
+{% set st = hv.get('update_status', 'ok') %}
+{% set up = hv.get('updates_total', 0) | int %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ host }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ status_badge_from_string(st) }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ status_badge_from_metric(up, 'updates_total') }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('update_note','') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+---
+
+## 🗂 Snapshots – Virtuelle Maschinen
+
+<table style="border-collapse: collapse; width: {{ PAL.table_width }};">
+<thead>
+<tr>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">VM</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Snapshots</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Ältester</th>
+  <th style="background:{{PAL.head.bg}};color:{{PAL.head.fg}};padding:8px 10px;border:1px solid {{PAL.head.border}};">Neuester</th>
+</tr>
+</thead>
+<tbody>
+{% for host in groups['vms'] %}
+{% set hv = hostvars.get(host, {}) %}
+<tr>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ host }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ snapshot_badge(hv) }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_oldest','–') }}</td>
+  <td style="padding:8px 10px;border:1px solid {{PAL.head.border}};">{{ hv.get('snapshot_youngest','–') }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+---
+
+## 📜 Logs
+
+{% set log_files = lookup('fileglob','reports/raw/ansible-*.log',wantlist=True) %}
+{% if log_files %}
+{% for file in log_files | sort %}
+<details>
+<summary><strong>{{file|basename}}</strong></summary>
+<pre style="background:#0b1021;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;line-height:1.35;">
+{{ lookup('file',file) | replace('<','&lt;') | replace('>','&gt;') }}
+</pre>
+</details>
+{% endfor %}
+{% else %}
+Keine Logfiles gefunden.
+{% endif %}

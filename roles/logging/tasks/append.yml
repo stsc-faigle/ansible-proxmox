@@ -1,0 +1,6 @@
+- name: Log-Eintrag hinzufügen
+  local_action:
+    module: lineinfile
+    path: "{{ log_file }}"
+    line: "{{ log_entry }}"
+

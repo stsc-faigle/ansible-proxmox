@@ -1,0 +1,13 @@
+[proxmox]
+# [machine_name] ansible_host=[IP_ADDRESS]
+
+[lxc]
+# später füllen
+
+[vms]
+# später füllen
+
+[all:vars]
+ansible_user=ansible
+ansible_become=true
+ansible_python_interpreter=/usr/bin/python3

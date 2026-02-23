@@ -1,0 +1,18 @@
+- name: Apt-Cache aktualisieren
+  apt:
+    update_cache: yes
+
+- name: System upgraden
+  apt:
+    upgrade: dist
+    autoremove: yes
+  register: vm_upgrade
+
+- name: Log schreiben
+  copy:
+    dest: "/var/log/ansible-vm-update.log"
+    content: |
+      Host: {{ inventory_hostname }}
+      Datum: {{ ansible_date_time.iso8601 }}
+      Upgrade: {{ vm_upgrade | to_nice_json }}
+

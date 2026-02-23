@@ -1,0 +1,17 @@
+- name: Logging-Verzeichnis sicherstellen
+  local_action:
+    module: file
+    path: "{{ playbook_dir }}/../reports/raw"
+    state: directory
+    mode: '0755'
+
+- name: Logfile definieren
+  set_fact:
+    log_file: "{{ playbook_dir }}/../reports/raw/ansible-{{ log_role }}-{{ inventory_hostname }}-{{ logging_timestamp }}.log"
+
+- name: Logfile initialisieren
+  local_action:
+    module: copy
+    dest: "{{ log_file }}"
+    content: "=== Log for role {{ log_role }} on {{ inventory_hostname }} ===\n"
+

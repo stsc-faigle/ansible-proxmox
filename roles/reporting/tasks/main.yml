@@ -1,0 +1,5 @@
+- name: Report generieren
+  template:
+    src: report.md.j2
+    dest: "reports/update-report-{{ ansible_date_time.date }}.md"
+

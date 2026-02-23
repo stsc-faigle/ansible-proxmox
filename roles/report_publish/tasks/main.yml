@@ -1,0 +1,31 @@
+- name: Zielverzeichnis für Reports anlegen
+  file:
+    path: /var/www/proxmox-reports
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Report-Datei finden
+  set_fact:
+    report_file: "{{ lookup('fileglob', playbook_dir + '/reports/update-report-*.md', wantlist=True) | sort | last }}"
+
+- name: "Debug: Gefundene Report-Datei"
+  debug:
+    msg: "Report gefunden unter: {{ report_file }}"
+
+- name: Report mit Datum veröffentlichen
+  copy:
+    src: "{{ report_file }}"
+    dest: "/var/www/proxmox-reports/report-{{ ansible_date_time.date }}.html"
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+
+- name: Symlink für latest.html aktualisieren
+  file:
+    src: "/var/www/proxmox-reports/report-{{ ansible_date_time.date }}.html"
+    dest: "/var/www/proxmox-reports/latest.html"
+    state: link
+    force: yes

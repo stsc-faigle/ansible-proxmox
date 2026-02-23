@@ -1,0 +1,15 @@
+- name: Proxmox Hosts updaten
+  hosts: proxmox
+  roles:
+    - proxmox_update
+
+- name: LXC Container updaten
+  hosts: proxmox
+  roles:
+    - lxc_update
+
+- name: VMs updaten
+  hosts: vms
+  roles:
+    - vm_update
+

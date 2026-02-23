@@ -1,0 +1,77 @@
+- name: Timestamp setzen
+  set_fact:
+    logging_timestamp: "{{ ansible_date_time.iso8601_basic }}"
+
+- name: Logging initialisieren
+  include_role:
+    name: logging
+  vars:
+    log_role: "lxc_update"
+
+- name: Container-IDs extrahieren (nur laufende)
+  become: true
+  command: /usr/sbin/pct list
+  register: pct_list
+
+- name: "Log: Container-IDs extrahiert"
+  include_role:
+    name: logging
+    tasks_from: append
+  vars:
+    log_entry: "Container IDs (raw): {{ pct_list.stdout_lines }}"
+
+- name: Container-IDs parsen
+  set_fact:
+    container_ids: >-
+      {{ pct_list.stdout_lines
+         | select('match', '^[0-9]+\\s+running')
+         | map('regex_search', '^([0-9]+)')
+         | map('int')
+         | list }}
+
+- name: "Log: Container-IDs nach Parsing"
+  include_role:
+    name: logging
+    tasks_from: append
+  vars:
+    log_entry: "Container IDs (parsed): {{ container_ids }}"
+
+- name: Updates für jeden Container
+  become: true
+  loop: "{{ container_ids }}"
+  loop_control:
+    loop_var: ct
+  command: >
+    pct exec {{ ct }} -- bash -c "apt update && apt -y full-upgrade"
+  register: update_result
+
+- name: "Log: Update für Container"
+  include_role:
+    name: logging
+    tasks_from: append
+  loop: "{{ update_result.results }}"
+  loop_control:
+    loop_var: item
+  vars:
+    log_entry: "Updated container {{ item.item }} (rc={{ item.rc }})"
+
+- name: Reboot-Bedarf prüfen
+  become: true
+  loop: "{{ container_ids }}"
+  loop_control:
+    loop_var: ct
+  command: >
+    pct exec {{ ct }} -- test -f /var/run/reboot-required
+  register: reboot_check
+  ignore_errors: true
+
+- name: "Log: Reboot Status"
+  include_role:
+    name: logging
+    tasks_from: append
+  loop: "{{ reboot_check.results }}"
+  loop_control:
+    loop_var: item
+  vars:
+    log_entry: "Reboot required for {{ item.item }}: {{ item.rc == 0 }}"
+

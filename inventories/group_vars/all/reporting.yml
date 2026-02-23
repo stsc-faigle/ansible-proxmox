@@ -1,0 +1,35 @@
+---
+reporting_thresholds:
+  proxmox:
+    warn: 1
+    crit: 0
+  lxc:
+    warn: 1
+    crit: 0
+  vms:
+    warn: 1
+    crit: 0
+
+reporting_host_thresholds:
+  updates_total:
+    warn: 10
+    crit: 30
+
+reporting_palette:
+  ok:
+    bg: "#E6F4EA"
+    fg: "#0F5132"
+    border: "#c7e6cf"
+  warn:
+    bg: "#FFF3CD"
+    fg: "#664D03"
+    border: "#ffe69c"
+  crit:
+    bg: "#F8D7DA"
+    fg: "#842029"
+    border: "#f1aeb5"
+  head:
+    bg: "#F6F8FA"
+    fg: "#24292f"
+    border: "#d0d7de"
+  table_width: "520px"

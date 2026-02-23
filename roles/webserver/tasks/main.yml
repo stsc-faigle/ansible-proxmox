@@ -1,0 +1,43 @@
+- name: Nginx installieren
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Webroot anlegen
+  file:
+    path: /var/www/proxmox-reports
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+
+- name: Nginx Site konfigurieren
+  copy:
+    dest: /etc/nginx/sites-available/proxmox-reports.conf
+    content: |
+      server {
+          listen 80;
+          server_name _;
+
+          root /var/www/proxmox-reports;
+          index index.html;
+
+          location / {
+              autoindex on;
+          }
+      }
+  notify: Reload nginx
+
+- name: Site aktivieren
+  file:
+    src: /etc/nginx/sites-available/proxmox-reports.conf
+    dest: /etc/nginx/sites-enabled/proxmox-reports.conf
+    state: link
+
+- name: Default Site deaktivieren
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload nginx
+

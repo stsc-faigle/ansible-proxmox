@@ -1,0 +1,10 @@
+- name: Logs einsammeln
+  hosts: all
+  gather_facts: false
+  tasks:
+    - fetch:
+        src: "/var/log/ansible-*.log"
+        dest: "reports/raw/"
+        flat: yes
+      ignore_errors: true
+

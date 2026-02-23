@@ -1,0 +1,14 @@
+- name: apt update im Container {{ ct_id }}
+  command: pct exec {{ ct_id }} -- apt update -y
+
+- name: apt dist-upgrade im Container {{ ct_id }}
+  command: pct exec {{ ct_id }} -- apt dist-upgrade -y
+
+- name: Log schreiben
+  copy:
+    dest: "/var/log/ansible-lxc-{{ ct_id }}.log"
+    content: |
+      Container: {{ ct_id }}
+      Datum: {{ ansible_date_time.iso8601 }}
+      Status: OK
+

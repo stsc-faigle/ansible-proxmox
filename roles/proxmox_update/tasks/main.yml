@@ -1,0 +1,28 @@
+- name: Apt-Cache aktualisieren
+  apt:
+    update_cache: yes
+
+- name: System upgraden
+  apt:
+    upgrade: dist
+    autoremove: yes
+  register: upgrade_result
+
+- name: Reboot nötig?
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Reboot durchführen
+  reboot:
+    msg: "Reboot durch Ansible nach Updates"
+  when: reboot_required.stat.exists
+
+- name: Log schreiben
+  copy:
+    dest: "/var/log/ansible-proxmox-update.log"
+    content: |
+      Host: {{ inventory_hostname }}
+      Datum: {{ ansible_date_time.iso8601 }}
+      Upgrade: {{ upgrade_result | to_nice_json }}
+

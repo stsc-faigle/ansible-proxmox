@@ -1,0 +1,41 @@
+---
+- name: 1) Proxmox Hosts aktualisieren
+  hosts: proxmox
+  become: true
+  roles:
+    - proxmox_update
+
+- name: 2) LXC Container aktualisieren
+  hosts: proxmox
+  become: true
+  roles:
+    - lxc_update
+
+- name: 3) Virtuelle Maschinen aktualisieren
+  hosts: vms
+  become: true
+  roles:
+    - vm_update
+
+- name: 4) Report generieren
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Reporting Rolle ausführen
+      include_role:
+        name: reporting
+
+- name: 5) Report archivieren (optional)
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Archivordner erstellen
+      file:
+        path: "reports/archive"
+        state: directory
+
+    - name: Report archivieren
+      copy:
+        src: "reports/update-report-{{ ansible_date_time.date }}.md"
+        dest: "reports/archive/update-report-{{ ansible_date_time.iso8601 }}.md"
+
